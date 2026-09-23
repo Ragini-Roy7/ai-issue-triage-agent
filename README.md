@@ -1,14 +1,15 @@
+
 # AI Software Issue Triage & Resolution Agent
 
 **An AI-powered software engineering agent that investigates issues, gathers evidence, proposes fixes, and progressively automates the path from bug report to verified resolution.**
 
 ![Status](https://img.shields.io/badge/status-early--development-yellow)
-![Version](https://img.shields.io/badge/version-V1-blue)
+![Version](https://img.shields.io/badge/version-V2-blue)
 ![Python](https://img.shields.io/badge/python-3.x-blue)
 ![Framework](https://img.shields.io/badge/framework-Google%20ADK-orange)
 ![License](https://img.shields.io/badge/license-not--yet--specified-lightgrey)
 
-> **Product status:** Early-stage, actively developed. The current release (**V1 — Tool-Using Agent**) demonstrates a single agent that reasons with Gemini and executes a deterministic Python tool through Google ADK. The system is being built incrementally toward a full issue-triage-to-resolution pipeline — see [Current Status](#3-current-status) for exactly what exists today.
+> **Product status:** Early-stage, actively developed. The current release (**V2 — GitHub Integration**) extends the V1 tool-using agent with a live GitHub tool layer: the agent reasons with Gemini, selects a tool through Google ADK, fetches real issue data from the GitHub REST API, and analyzes it. The system is being built incrementally toward a full issue-triage-to-resolution pipeline — see [Current Status](#3-current-status) for exactly what exists today.
 
 ---
 
@@ -17,7 +18,9 @@
 1. [Product Overview](#1-product-overview)
 2. [Product Vision](#2-product-vision)
 3. [Current Status](#3-current-status)
-4. [Current V1 Architecture](#4-current-v1-architecture)
+4. [Architecture](#4-architecture)
+   - [4.1 V1 Architecture (Baseline)](#41-v1-architecture-baseline)
+   - [4.2 V2 Architecture (Current)](#42-v2-architecture-current)
 5. [Agent Execution Flow](#5-agent-execution-flow)
 6. [Why Tool Use?](#6-why-tool-use)
 7. [Tech Stack](#7-tech-stack)
@@ -49,7 +52,7 @@ An agentic approach is useful here because triage is not a single classification
 
 This project is designed to become a developer-facing agent that takes in raw issue signal (GitHub issues, descriptions, repository context, logs, screenshots, documentation, code, and eventually audio/video) and progressively narrows it down to a classified, investigated, and — eventually — verifiably fixed issue, with a human in control of anything destructive.
 
-**Today, the system implements the smallest meaningful slice of that vision:** an agent that can decide to call a tool, execute it, and reason over the result.
+**Today, the system implements the first two slices of that vision:** an agent that can decide to call a tool, execute it, and reason over the result (V1), and that can now retrieve live issue data from GitHub as engineering evidence (V2).
 
 ## 2. Product Vision
 
@@ -82,8 +85,8 @@ This is the **vision** the architecture is being built toward. It is *not* the c
 | Version | Capability | Status |
 |---|---|---|
 | V0 | Basic ADK Agent | ✅ Complete |
-| V1 | Tool-Using Agent | ✅ Complete (current) |
-| V2 | GitHub Integration | ✅ Complete |
+| V1 | Tool-Using Agent | ✅ Complete |
+| V2 | GitHub Integration | ✅ Complete (current) |
 | V3 | Structured Issue Triage | ⬜ Planned |
 | V4 | Repository Intelligence | ⬜ Planned |
 | V5 | Custom MCP Server | ⬜ Planned |
@@ -97,7 +100,11 @@ This is the **vision** the architecture is being built toward. It is *not* the c
 | V13 | Observability | ⬜ Planned |
 | V14 | Deployment | ⬜ Planned |
 
-## 4. Current V1 Architecture
+## 4. Architecture
+
+Architecture is documented per version. Each version extends the previous one rather than replacing it, so the V1 baseline is preserved below and V2 builds directly on top of it.
+
+### 4.1 V1 Architecture (Baseline)
 
 ```mermaid
 flowchart TD
@@ -121,11 +128,70 @@ flowchart TD
 - **Developer / User** — sends a natural-language request through the ADK Web development UI.
 - **ADK Agent** — the Google ADK agent wrapper that manages the request/response lifecycle and tool registration.
 - **Gemini** — the model (Gemini 3.5 Flash-Lite) responsible for interpreting the request and deciding whether a tool call is needed.
-- **`get_project_context()`** — the current custom Python tool. It returns deterministic, static information about the project.
+- **`get_project_context()`** — the V1 custom Python tool. It returns deterministic, static information about the project.
 - **Tool Result** — the structured output handed back to the model.
 - **Final Response** — Gemini's answer after incorporating the tool result.
 
+### 4.2 V2 Architecture (Current)
+
+V2 adds a **GitHub Tool Layer** between the agent and the GitHub REST API, plus a **Context Boundary** that filters API responses down to relevant fields before they reach the model.
+
+```mermaid
+flowchart TD
+    U[Developer / User<br/>Issue / Investigation Request]
+    A[Google ADK root_agent<br/>Gemini 3.5 Flash-Lite]
+    R[Agent Reasoning]
+    S[Tool Selection]
+    G[GitHub Tool Layer]
+    T1["get_github_issue() ✅"]
+    T2["get_issue_comments() ⏳"]
+    T3["get_repo_tree() ⏳"]
+    T4["get_repo_file() ⏳"]
+    T5["get_commits() ⏳"]
+    T6["get_pull_requests() ⏳"]
+    API[GitHub REST API<br/>Issues · Comments · Repository<br/>Files · Commits · Pull Requests]
+    C[Context Boundary<br/>Select relevant fields before<br/>returning data to the agent]
+    L[Gemini LLM<br/>Analyze retrieved engineering evidence]
+    F[Investigation / Triage Response]
+
+    U --> A
+    A --> R
+    A --> S
+    R --> G
+    S --> G
+    G --> T1
+    G --> T2
+    G --> T3
+    G --> T4
+    G --> T5
+    G --> T6
+    T1 -->|HTTPS / REST| API
+    T2 -.->|planned| API
+    T3 -.->|planned| API
+    T4 -.->|planned| API
+    T5 -.->|planned| API
+    T6 -.->|planned| API
+    API -->|Structured tool result| C
+    C --> L
+    L --> F
+```
+
+**Legend:** ✅ implemented · ⏳ planned (dotted lines show routes not yet built).
+
+**New and changed components in V2:**
+
+- **GitHub Tool Layer** — a set of explicit, typed Python tools that wrap GitHub REST endpoints. The model never calls GitHub directly; every access goes through a registered tool with defined inputs and outputs.
+- **`get_github_issue()`** — implemented in V2. Fetches a single issue (title, body, state, labels, and related metadata) from the GitHub REST API.
+- **Planned tools** — `get_issue_comments()`, `get_repo_tree()`, `get_repo_file()`, `get_commits()`, and `get_pull_requests()` extend the same layer in later versions (primarily V4).
+- **GitHub REST API** — the external system of record for issues, comments, repository contents, commits, and pull requests, accessed over HTTPS.
+- **Context Boundary** — a filtering step that keeps only the fields relevant to triage from the raw API payload. This limits token usage, reduces noise, and shrinks the surface for untrusted content to reach the model.
+- **Gemini LLM (analysis)** — receives the filtered evidence and produces the investigation / triage response, grounded in retrieved data rather than the issue text alone.
+
+**What changed from V1:** the tool moved from *static, local* (`get_project_context()`) to *live, external* (GitHub REST API). The loop itself — reasoning, tool selection, execution, result integration — is unchanged.
+
 ## 5. Agent Execution Flow
+
+### V1 flow
 
 1. The user sends a request through the ADK Web UI.
 2. ADK invokes the registered agent.
@@ -136,7 +202,38 @@ flowchart TD
 7. The result is fed back into the model's context.
 8. Gemini produces the final response, now grounded in the tool's output.
 
-This differs from simply pasting all information into the prompt because the model is making an active **decision** about *when* it needs external information, rather than always receiving a fixed context blob. That decision-making step — tool selection — is the mechanism this whole project is built around, and every future version (GitHub access, repository search, sandboxed execution) extends this same loop with more capable tools rather than replacing it.
+This differs from simply pasting all information into the prompt because the model is making an active **decision** about *when* it needs external information, rather than always receiving a fixed context blob. That decision-making step — tool selection — is the mechanism this whole project is built around, and every future version (repository search, sandboxed execution) extends this same loop with more capable tools rather than replacing it.
+
+### V2 flow
+
+```mermaid
+sequenceDiagram
+    participant U as User
+    participant A as ADK root_agent
+    participant M as Gemini
+    participant T as GitHub Tool Layer
+    participant G as GitHub REST API
+    participant C as Context Boundary
+
+    U->>A: Investigate issue (repo + issue number)
+    A->>M: Interpret request
+    M->>A: Select get_github_issue()
+    A->>T: Execute tool with validated inputs
+    T->>G: HTTPS GET /repos/{owner}/{repo}/issues/{n}
+    G-->>T: Raw JSON response
+    T->>C: Raw payload
+    C-->>A: Filtered, structured result
+    A->>M: Tool result added to context
+    M-->>U: Investigation / triage response
+```
+
+1. The user submits an issue or investigation request (repository and issue reference).
+2. ADK invokes the `root_agent`; Gemini interprets the request and decides a GitHub lookup is needed.
+3. Gemini selects `get_github_issue()`.
+4. ADK executes the tool, which calls the GitHub REST API over HTTPS.
+5. The raw response passes through the **Context Boundary**, which selects only relevant fields.
+6. The structured result is returned to the model.
+7. Gemini analyzes the retrieved evidence and produces the investigation / triage response.
 
 ## 6. Why Tool Use?
 
@@ -153,7 +250,7 @@ The core separation this project relies on:
 - Data retrieval
 - Actions
 
-Keeping these separate matters because it is what makes the system extensible and trustworthy as it grows. When the agent eventually needs to talk to GitHub, read repository files, parse logs, run tests, or query a database, none of that should happen "inside" the model's imagination — it should happen through explicit, auditable tool calls with defined inputs and outputs. The model decides *what* to do; the tool decides *how* it actually gets done. This is also the foundation that later versions (MCP integration, sandboxed execution, multi-agent orchestration) build directly on top of.
+Keeping these separate matters because it is what makes the system extensible and trustworthy as it grows. When the agent talks to GitHub (V2), and eventually reads repository files, parses logs, runs tests, or queries a database, none of that should happen "inside" the model's imagination — it should happen through explicit, auditable tool calls with defined inputs and outputs. The model decides *what* to do; the tool decides *how* it actually gets done. This is also the foundation that later versions (MCP integration, sandboxed execution, multi-agent orchestration) build directly on top of.
 
 ## 7. Tech Stack
 
@@ -164,6 +261,7 @@ Keeping these separate matters because it is what makes the system extensible an
 | Python | Core implementation language |
 | Google ADK | Agent framework, tool registration, dev UI |
 | Gemini 3.5 Flash-Lite | Reasoning / tool-selection model |
+| GitHub REST API | Live issue retrieval (V2) |
 | ADK Web | Local development and testing UI |
 | Environment variables (`.env`) | API key configuration |
 
@@ -171,7 +269,7 @@ Keeping these separate matters because it is what makes the system extensible an
 
 | Technology | Purpose |
 |---|---|
-| GitHub API | Issue intake, repository access (V2) |
+| GitHub API (extended endpoints) | Comments, repository tree, files, commits, pull requests (V4) |
 | MCP (Model Context Protocol) | Standardized tool/resource server (V5) |
 | Pydantic / structured outputs | Schema-validated triage output (V3) |
 | Sandbox execution environment | Safe code execution and verification (V9) |
@@ -191,7 +289,7 @@ ai-issue-triage-agent/
 └── requirements.txt
 ```
 
-> The `my_agent/` package contains the ADK agent definition and the `get_project_context()` tool. Structure inside it will expand as capabilities are added — see below.
+> The `my_agent/` package contains the ADK agent definition and its registered tools: `get_project_context()` (V1) and `get_github_issue()` (V2). Structure inside it will expand as capabilities are added — see below.
 
 **Planned future structure (not yet implemented):**
 
@@ -238,6 +336,7 @@ adk web
 #    (URL printed in the terminal, typically http://localhost:8000)
 
 # 9. Send a test request to the agent from the UI
+#    e.g. "Fetch and summarize issue #1 from Ragini-Roy7/ai-issue-triage-agent"
 ```
 
 ## 10. Environment Variables
@@ -245,17 +344,25 @@ adk web
 | Variable | Description |
 |---|---|
 | `GEMINI_API_KEY` | API key used by the agent to call Gemini. |
+| `GITHUB_TOKEN` | *(Optional)* GitHub personal access token. Raises API rate limits and enables access to private repositories. Use a fine-grained, read-only token. |
 
-> ⚠️ **Never commit API keys.** Keep `.env` listed in `.gitignore` and out of version control at all times.
+> ⚠️ **Never commit API keys or tokens.** Keep `.env` listed in `.gitignore` and out of version control at all times.
 
 ## 11. Demo
 
 [▶ Watch the V1 Agent Demo](#)
 
-**Demo flow:**
+**V1 demo flow:**
 
 ```
 User request → Agent → Tool selection → Tool execution → Tool result → Final response
+```
+
+**V2 demo flow:**
+
+```
+User request → Agent → Tool selection → get_github_issue() → GitHub REST API
+   → Context Boundary → Gemini analysis → Investigation / triage response
 ```
 
 ## 12. Engineering Decisions
@@ -266,11 +373,17 @@ The project intentionally evolves through milestones (V0 → V14) rather than in
 ### Deterministic tools + probabilistic reasoning
 The model handles interpretation and decision-making; tools handle deterministic operations. This separation is what keeps the system predictable as more tools are added.
 
+### Context boundary
+Raw API responses are never passed to the model wholesale. The GitHub tool layer selects only the fields relevant to triage before returning data, which controls token cost, reduces noise, and limits how much untrusted content reaches the model.
+
+### One tool per capability
+Each GitHub operation is exposed as its own narrow tool (issue, comments, tree, file, commits, pull requests) rather than a single generic "call GitHub" tool. Narrow tools are easier to validate, audit, permission, and evaluate.
+
 ### Human control
 Future stages that can modify code, open PRs, or execute anything against a real environment are designed to require explicit human approval before acting.
 
 ### Evidence over assumptions
-Future investigation stages are designed to gather repository, log, and test evidence *before* proposing a root cause, rather than inferring one from the issue text alone.
+Future investigation stages are designed to gather repository, log, and test evidence *before* proposing a root cause, rather than inferring one from the issue text alone. V2 is the first step: the agent retrieves the actual issue from GitHub instead of relying on pasted text.
 
 ### Security by design
 Future versions must account for prompt injection, tool poisoning, secret leakage, path traversal, unsafe commands, least privilege, and sandboxing — addressed as the relevant capabilities (V9, V11) are built, not retrofitted afterward.
@@ -316,16 +429,18 @@ Planned metrics include:
 
 ## 15. Security Model
 
-No security or guardrail layer is implemented yet (planned for V11). The intended model, once built, treats the following as core boundaries:
+No dedicated security or guardrail layer is implemented yet (planned for V11). V2 introduces external, untrusted input (GitHub issue content) for the first time, so the intended model treats the following as core boundaries:
 
 - Treat GitHub issues, README files, logs, and any retrieved content as **untrusted data**.
 - Never blindly follow instructions found inside retrieved content.
-- Restrict tool permissions to the minimum required.
+- Restrict tool permissions to the minimum required (e.g., read-only GitHub tokens).
 - Validate all tool inputs.
 - Prevent secret leakage in logs, prompts, and outputs.
 - Sandbox any generated or executed code.
 - Require human approval for destructive or production-impacting operations.
 - Audit all tool calls.
+
+> **V2 note:** the Context Boundary reduces exposure by passing only selected fields to the model, but it is a data-minimization measure, **not** a prompt-injection defense. Issue titles and bodies still reach the model and must be treated as untrusted until V11 guardrails are in place.
 
 ## 16. Design Tradeoffs
 
@@ -335,21 +450,21 @@ Additional agents introduce latency, cost, state management overhead, inter-agen
 **Why start with a single agent + tools?**
 It establishes the core tool-use foundation — model reasoning, tool selection, deterministic execution, result integration — before layering distributed orchestration on top of it.
 
-**Why MCP later, not now?**
-MCP is a protocol abstraction over tool/resource access. It's more useful once there's a concrete need for standardized, swappable tool integration (multiple tool sources, external servers). Introducing it before that need exists would add indirection without a corresponding benefit at this stage.
+**Why direct GitHub REST calls before MCP?**
+V2 wraps the GitHub REST API in plain Python tools. MCP is a protocol abstraction over tool/resource access, and it is more useful once there's a concrete need for standardized, swappable tool integration (multiple tool sources, external servers). Introducing it before that need exists would add indirection without a corresponding benefit at this stage; V5 revisits this once the tool surface has grown.
 
 None of this implies single-agent, direct-tool-call architectures are universally superior — they're the right starting point for *this* project's current stage, and the roadmap explicitly plans to move past them.
 
 ## 17. Limitations
 
-Current, honest limitations of V1:
+Current, honest limitations of V2:
 
-- `get_project_context()` is a local, static tool — it does not query any live system.
-- No GitHub integration exists yet.
+- GitHub integration is limited to `get_github_issue()`; comments, repository tree, file contents, commits, and pull requests are planned but not yet implemented.
 - No repository investigation or code search capability exists yet.
 - No automated issue classification schema exists yet.
 - No code execution capability exists yet.
 - No automated PR creation exists yet.
+- No prompt-injection defenses or guardrails exist yet.
 - No production deployment exists.
 - No formal evaluation benchmark exists yet.
 
