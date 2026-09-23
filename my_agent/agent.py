@@ -1,5 +1,5 @@
 from google.adk.agents.llm_agent import Agent
-
+from my_agent.tools.github import get_github_issue
 
 def get_project_context() -> str:
     """Returns important context about the AI issue triage project."""
@@ -35,6 +35,9 @@ root_agent = Agent(
 
     When you need information about the project itself, use the
     get_project_context tool instead of guessing.
+    
+    When the user asks you to inspect a GitHub issue, use the
+get_github_issue tool to retrieve the issue before analyzing it.
     """,
-    tools=[get_project_context],
+    tools=[get_project_context, get_github_issue],
 )
