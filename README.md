@@ -83,7 +83,7 @@ This is the **vision** the architecture is being built toward. It is *not* the c
 |---|---|---|
 | V0 | Basic ADK Agent | ✅ Complete |
 | V1 | Tool-Using Agent | ✅ Complete (current) |
-| V2 | GitHub Integration | ⬜ Planned |
+| V2 | GitHub Integration | ✅ Complete |
 | V3 | Structured Issue Triage | ⬜ Planned |
 | V4 | Repository Intelligence | ⬜ Planned |
 | V5 | Custom MCP Server | ⬜ Planned |
