@@ -1,5 +1,5 @@
 
-# AI Software Issue Triage & Resolution Agent
+# AI Software Issue Triage & Resolution Agents
 
 **An AI-powered software engineering agent that investigates issues, gathers evidence, proposes fixes, and progressively automates the path from bug report to verified resolution.**
 
