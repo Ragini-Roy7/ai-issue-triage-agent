@@ -9,7 +9,7 @@
 ![Framework](https://img.shields.io/badge/framework-Google%20ADK-orange)
 ![License](https://img.shields.io/badge/license-not--yet--specified-lightgrey)
 
-> **Product status:** Early-stage, actively developed. The current release (**V2 — GitHub Integration**) extends the V1 tool-using agent with a live GitHub tool layer: the agent reasons with Gemini, selects a tool through Google ADK, fetches real issue data from the GitHub REST API, and analyzes it. The system is being built incrementally toward a full issue-triage-to-resolution pipeline — see [Current Status](#3-current-status) for exactly what exists today.
+> **Product status:*** Early-stage, actively developed. The current release (**V2 — GitHub Integration**) extends the V1 tool-using agent with a live GitHub tool layer: the agent reasons with Gemini, selects a tool through Google ADK, fetches real issue data from the GitHub REST API, and analyzes it. The system is being built incrementally toward a full issue-triage-to-resolution pipeline — see [Current Status](#3-current-status) for exactly what exists today.
 
 ---
 
